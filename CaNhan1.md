@@ -887,3 +887,265 @@ export default CodeReviewer;
 
 
 
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { FolderPlus, Folder, Trash2, Edit, Calendar, Code } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface Project {
+  id: string;
+  name: string;
+  description: string;
+  language: string;
+  code: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ProjectManagerProps {
+  onProjectSelect?: (project: Project) => void;
+}
+
+const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect }) => {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [newProjectLanguage, setNewProjectLanguage] = useState('javascript');
+
+  // Load projects from localStorage on component mount
+  useEffect(() => {
+    const savedProjects = localStorage.getItem('codeProjects');
+    if (savedProjects) {
+      const parsedProjects = JSON.parse(savedProjects).map((p: Project & { createdAt: string; updatedAt: string }) => ({
+        ...p,
+        createdAt: new Date(p.createdAt),
+        updatedAt: new Date(p.updatedAt)
+      }));
+      setProjects(parsedProjects);
+    }
+  }, []);
+
+  // Save projects to localStorage whenever projects change
+  useEffect(() => {
+    localStorage.setItem('codeProjects', JSON.stringify(projects));
+  }, [projects]);
+
+  const createProject = () => {
+    if (!newProjectName.trim()) {
+      toast.error('Project name is required');
+      return;
+    }
+
+    const newProject: Project = {
+      id: Date.now().toString(),
+      name: newProjectName.trim(),
+      description: newProjectDescription.trim(),
+      language: newProjectLanguage,
+      code: '',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    setProjects(prev => [newProject, ...prev]);
+    setNewProjectName('');
+    setNewProjectDescription('');
+    setNewProjectLanguage('javascript');
+    setIsCreateDialogOpen(false);
+    toast.success('Project created successfully!');
+  };
+
+  const deleteProject = (projectId: string) => {
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+    toast.success('Project deleted successfully!');
+  };
+
+  const selectProject = (project: Project) => {
+    onProjectSelect?.(project);
+    toast.success(`Opened project: ${project.name}`);
+  };
+
+  const getLanguageColor = (language: string) => {
+    const colors: { [key: string]: string } = {
+      javascript: 'bg-yellow-100 text-yellow-800',
+      typescript: 'bg-blue-100 text-blue-800',
+      python: 'bg-green-100 text-green-800',
+      java: 'bg-red-100 text-red-800',
+      sql: 'bg-purple-100 text-purple-800',
+      html: 'bg-orange-100 text-orange-800',
+      css: 'bg-pink-100 text-pink-800'
+    };
+    return colors[language] || 'bg-gray-100 text-gray-800';
+  };
+
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Folder className="w-5 h-5" />
+            Project Manager
+          </CardTitle>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <FolderPlus className="w-4 h-4" />
+                New Project
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Project</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Project Name</label>
+                  <Input
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Enter project name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description</label>
+                  <Input
+                    value={newProjectDescription}
+                    onChange={(e) => setNewProjectDescription(e.target.value)}
+                    placeholder="Enter project description"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Language</label>
+                  <select
+                    value={newProjectLanguage}
+                    onChange={(e) => setNewProjectLanguage(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="java">Java</option>
+                    <option value="sql">SQL</option>
+                    <option value="html">HTML</option>
+                    <option value="css">CSS</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={createProject}>
+                    Create Project
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {projects.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Folder className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>No projects yet. Create your first project to get started!</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {projects.map((project) => (
+              <Card
+                key={project.id}
+                className="cursor-pointer transition-all hover:shadow-md hover:border-blue-300"
+                onClick={() => selectProject(project)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium">{project.name}</h4>
+                        <Badge className={getLanguageColor(project.language)}>
+                          {project.language}
+                        </Badge>
+                      </div>
+                      
+                      {project.description && (
+                        <p className="text-sm text-gray-600">{project.description}</p>
+                      )}
+                      
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          Created: {formatDate(project.createdAt)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Edit className="w-3 h-3" />
+                          Updated: {formatDate(project.updatedAt)}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Code className="w-3 h-3" />
+                          {project.code.length} chars
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="ml-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Project</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete "{project.name}"? This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteProject(project.id)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ProjectManager;
+
+
+
+
+
+
