@@ -170,3 +170,176 @@ export const getTemplatesByCategory = (category: string) => {
 export const getAllCategories = () => {
   return [...new Set(codeTemplates.map(template => template.category))];
 };
+
+
+
+
+
+
+
+
+export interface ReviewRule {
+  id: string;
+  name: string;
+  description: string;
+  severity: 'error' | 'warning' | 'info';
+  pattern?: RegExp;
+  check: (code: string) => ReviewResult[];
+}
+
+export interface ReviewResult {
+  line: number;
+  column: number;
+  message: string;
+  severity: 'error' | 'warning' | 'info';
+  rule: string;
+}
+
+export const reviewRules: ReviewRule[] = [
+  {
+    id: 'no-console-log',
+    name: 'No Console Logs',
+    description: 'Avoid console.log statements in production code',
+    severity: 'warning',
+    pattern: /console\.log/g,
+    check: (code: string): ReviewResult[] => {
+      const results: ReviewResult[] = [];
+      const lines = code.split('\n');
+      
+      lines.forEach((line, index) => {
+        if (line.includes('console.log')) {
+          results.push({
+            line: index + 1,
+            column: line.indexOf('console.log') + 1,
+            message: 'Remove console.log statement before production',
+            severity: 'warning',
+            rule: 'no-console-log'
+          });
+        }
+      });
+      
+      return results;
+    }
+  },
+  {
+    id: 'missing-semicolon',
+    name: 'Missing Semicolons',
+    description: 'JavaScript/TypeScript statements should end with semicolons',
+    severity: 'error',
+    check: (code: string): ReviewResult[] => {
+      const results: ReviewResult[] = [];
+      const lines = code.split('\n');
+      
+      lines.forEach((line, index) => {
+        const trimmed = line.trim();
+        if (trimmed && 
+            !trimmed.endsWith(';') && 
+            !trimmed.endsWith('{') && 
+            !trimmed.endsWith('}') &&
+            !trimmed.startsWith('//') &&
+            !trimmed.startsWith('*') &&
+            !trimmed.includes('import ') &&
+            !trimmed.includes('export ') &&
+            trimmed.length > 0) {
+          results.push({
+            line: index + 1,
+            column: trimmed.length,
+            message: 'Missing semicolon at end of statement',
+            severity: 'error',
+            rule: 'missing-semicolon'
+          });
+        }
+      });
+      
+      return results;
+    }
+  },
+  {
+    id: 'long-function',
+    name: 'Long Function',
+    description: 'Functions should not be too long (max 50 lines)',
+    severity: 'warning',
+    check: (code: string): ReviewResult[] => {
+      const results: ReviewResult[] = [];
+      const lines = code.split('\n');
+      let functionStart = -1;
+      let braceCount = 0;
+      
+      lines.forEach((line, index) => {
+        const trimmed = line.trim();
+        
+        if (trimmed.includes('function ') || trimmed.includes('=>') || trimmed.match(/^\s*\w+\s*\(/)) {
+          functionStart = index;
+          braceCount = 0;
+        }
+        
+        if (functionStart !== -1) {
+          braceCount += (line.match(/{/g) || []).length;
+          braceCount -= (line.match(/}/g) || []).length;
+          
+          if (braceCount === 0 && functionStart !== -1) {
+            const functionLength = index - functionStart + 1;
+            if (functionLength > 50) {
+              results.push({
+                line: functionStart + 1,
+                column: 1,
+                message: `Function is too long (${functionLength} lines). Consider breaking it down.`,
+                severity: 'warning',
+                rule: 'long-function'
+              });
+            }
+            functionStart = -1;
+          }
+        }
+      });
+      
+      return results;
+    }
+  },
+  {
+    id: 'no-var',
+    name: 'No var keyword',
+    description: 'Use let or const instead of var',
+    severity: 'warning',
+    check: (code: string): ReviewResult[] => {
+      const results: ReviewResult[] = [];
+      const lines = code.split('\n');
+      
+      lines.forEach((line, index) => {
+        if (line.match(/\bvar\s+/)) {
+          results.push({
+            line: index + 1,
+            column: line.indexOf('var') + 1,
+            message: 'Use let or const instead of var',
+            severity: 'warning',
+            rule: 'no-var'
+          });
+        }
+      });
+      
+      return results;
+    }
+  }
+];
+
+export const runCodeReview = (code: string): ReviewResult[] => {
+  const allResults: ReviewResult[] = [];
+  
+  reviewRules.forEach(rule => {
+    const results = rule.check(code);
+    allResults.push(...results);
+  });
+  
+  return allResults.sort((a, b) => a.line - b.line);
+};
+
+export const getReviewStats = (results: ReviewResult[]) => {
+  const stats = {
+    total: results.length,
+    errors: results.filter(r => r.severity === 'error').length,
+    warnings: results.filter(r => r.severity === 'warning').length,
+    info: results.filter(r => r.severity === 'info').length
+  };
+  
+  return stats;
+};
