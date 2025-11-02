@@ -1153,3 +1153,251 @@ const ProjectManager: React.FC<ProjectManagerProps> = ({ onProjectSelect }) => {
 };
 
 export default ProjectManager;
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { History, TrendingUp, AlertTriangle, CheckCircle, Calendar, Trash2 } from 'lucide-react';
+import { ReviewResult } from '@/lib/reviewRules';
+
+interface ReviewRecord {
+  id: string;
+  projectName: string;
+  timestamp: Date;
+  results: ReviewResult[];
+  qualityScore: number;
+  codeLength: number;
+}
+
+interface ReviewHistoryProps {
+  currentReview?: {
+    projectName: string;
+    results: ReviewResult[];
+    qualityScore: number;
+    codeLength: number;
+  };
+}
+
+const ReviewHistory: React.FC<ReviewHistoryProps> = ({ currentReview }) => {
+  const [reviewHistory, setReviewHistory] = useState<ReviewRecord[]>([]);
+
+  // Load review history from localStorage
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('reviewHistory');
+    if (savedHistory) {
+      const parsedHistory = JSON.parse(savedHistory).map((record: any) => ({
+        ...record,
+        timestamp: new Date(record.timestamp)
+      }));
+      setReviewHistory(parsedHistory);
+    }
+  }, []);
+
+  // Save current review to history
+  useEffect(() => {
+    if (currentReview) {
+      const newRecord: ReviewRecord = {
+        id: Date.now().toString(),
+        projectName: currentReview.projectName,
+        timestamp: new Date(),
+        results: currentReview.results,
+        qualityScore: currentReview.qualityScore,
+        codeLength: currentReview.codeLength
+      };
+
+      const updatedHistory = [newRecord, ...reviewHistory].slice(0, 50); // Keep last 50 reviews
+      setReviewHistory(updatedHistory);
+      localStorage.setItem('reviewHistory', JSON.stringify(updatedHistory));
+    }
+  }, [currentReview]);
+
+  const deleteRecord = (recordId: string) => {
+    const updatedHistory = reviewHistory.filter(record => record.id !== recordId);
+    setReviewHistory(updatedHistory);
+    localStorage.setItem('reviewHistory', JSON.stringify(updatedHistory));
+  };
+
+  const clearAllHistory = () => {
+    setReviewHistory([]);
+    localStorage.removeItem('reviewHistory');
+  };
+
+  const getQualityBadgeVariant = (score: number) => {
+    if (score >= 80) return 'default';
+    if (score >= 60) return 'secondary';
+    return 'destructive';
+  };
+
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
+
+  const getAverageQualityScore = () => {
+    if (reviewHistory.length === 0) return 0;
+    const sum = reviewHistory.reduce((acc, record) => acc + record.qualityScore, 0);
+    return Math.round(sum / reviewHistory.length);
+  };
+
+  const getTotalIssuesFound = () => {
+    return reviewHistory.reduce((acc, record) => acc + record.results.length, 0);
+  };
+
+  const getRecentTrend = () => {
+    if (reviewHistory.length < 2) return 'stable';
+    const recent = reviewHistory.slice(0, 5);
+    const older = reviewHistory.slice(5, 10);
+    
+    if (recent.length === 0 || older.length === 0) return 'stable';
+    
+    const recentAvg = recent.reduce((acc, r) => acc + r.qualityScore, 0) / recent.length;
+    const olderAvg = older.reduce((acc, r) => acc + r.qualityScore, 0) / older.length;
+    
+    if (recentAvg > olderAvg + 5) return 'improving';
+    if (recentAvg < olderAvg - 5) return 'declining';
+    return 'stable';
+  };
+
+  const trend = getRecentTrend();
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <History className="w-5 h-5" />
+            Review History
+          </CardTitle>
+          {reviewHistory.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearAllHistory}
+              className="text-red-600 hover:text-red-700"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Clear All
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {reviewHistory.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>No review history yet. Start reviewing code to see your progress!</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Statistics Overview */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{reviewHistory.length}</div>
+                <div className="text-sm text-gray-600">Total Reviews</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{getAverageQualityScore()}%</div>
+                <div className="text-sm text-gray-600">Avg Quality</div>
+              </div>
+              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{getTotalIssuesFound()}</div>
+                <div className="text-sm text-gray-600">Issues Found</div>
+              </div>
+            </div>
+
+            {/* Trend Indicator */}
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+              <TrendingUp className={`w-5 h-5 ${
+                trend === 'improving' ? 'text-green-500' : 
+                trend === 'declining' ? 'text-red-500' : 'text-gray-500'
+              }`} />
+              <span className="font-medium">Recent Trend:</span>
+              <Badge variant={
+                trend === 'improving' ? 'default' : 
+                trend === 'declining' ? 'destructive' : 'secondary'
+              }>
+                {trend === 'improving' ? 'Improving' : 
+                 trend === 'declining' ? 'Declining' : 'Stable'}
+              </Badge>
+            </div>
+
+            {/* Review Records */}
+            <div className="space-y-3">
+              <h4 className="font-medium">Recent Reviews</h4>
+              {reviewHistory.slice(0, 10).map((record) => (
+                <Card key={record.id} className="relative">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <h5 className="font-medium">{record.projectName}</h5>
+                          <Badge variant={getQualityBadgeVariant(record.qualityScore)}>
+                            {record.qualityScore}%
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {formatDate(record.timestamp)}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {record.results.length === 0 ? (
+                              <CheckCircle className="w-3 h-3 text-green-500" />
+                            ) : (
+                              <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                            )}
+                            {record.results.length} issues
+                          </div>
+                          <div>
+                            {record.codeLength} characters
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs">
+                            <span>Quality Score</span>
+                            <span>{record.qualityScore}%</span>
+                          </div>
+                          <Progress value={record.qualityScore} className="h-1" />
+                        </div>
+
+                        {record.results.length > 0 && (
+                          <div className="text-xs text-gray-500">
+                            Issues: {record.results.filter(r => r.severity === 'error').length} errors, {' '}
+                            {record.results.filter(r => r.severity === 'warning').length} warnings
+                          </div>
+                        )}
+                      </div>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteRecord(record.id)}
+                        className="text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ReviewHistory;
