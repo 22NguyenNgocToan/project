@@ -499,3 +499,175 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 };
 
 export default CodeEditor;
+
+
+
+
+
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Wand2, RefreshCw } from 'lucide-react';
+import { codeTemplates, getAllCategories, getTemplatesByCategory, CodeTemplate } from '@/lib/codeTemplates';
+import CodeEditor from './CodeEditor';
+import { toast } from 'sonner';
+
+interface CodeGeneratorProps {
+  onCodeGenerated?: (code: string, template: CodeTemplate) => void;
+}
+
+const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onCodeGenerated }) => {
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedTemplate, setSelectedTemplate] = useState<CodeTemplate | null>(null);
+  const [generatedCode, setGeneratedCode] = useState<string>('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const categories = getAllCategories();
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+    setSelectedTemplate(null);
+    setGeneratedCode('');
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = codeTemplates.find(t => t.id === templateId);
+    if (template) {
+      setSelectedTemplate(template);
+      setGeneratedCode('');
+    }
+  };
+
+  const generateCode = async () => {
+    if (!selectedTemplate) {
+      toast.error('Please select a template first');
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    // Simulate code generation process
+    setTimeout(() => {
+      setGeneratedCode(selectedTemplate.code);
+      onCodeGenerated?.(selectedTemplate.code, selectedTemplate);
+      setIsGenerating(false);
+      toast.success('Code generated successfully!');
+    }, 1000);
+  };
+
+  const regenerateCode = () => {
+    if (selectedTemplate) {
+      generateCode();
+    }
+  };
+
+  const availableTemplates = selectedCategory 
+    ? getTemplatesByCategory(selectedCategory)
+    : [];
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wand2 className="w-5 h-5" />
+            Code Generator
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Category Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Select Category</label>
+            <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Template Selection */}
+          {selectedCategory && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Template</label>
+              <div className="grid gap-2">
+                {availableTemplates.map((template) => (
+                  <Card
+                    key={template.id}
+                    className={`cursor-pointer transition-all hover:shadow-md ${
+                      selectedTemplate?.id === template.id
+                        ? 'ring-2 ring-blue-500 bg-blue-50'
+                        : ''
+                    }`}
+                    onClick={() => handleTemplateSelect(template.id)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <h4 className="font-medium">{template.name}</h4>
+                          <p className="text-sm text-gray-600">{template.description}</p>
+                        </div>
+                        <Badge variant="outline">{template.language}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Generate Button */}
+          {selectedTemplate && (
+            <div className="flex gap-2">
+              <Button
+                onClick={generateCode}
+                disabled={isGenerating}
+                className="flex items-center gap-2"
+              >
+                {isGenerating ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Wand2 className="w-4 h-4" />
+                )}
+                {isGenerating ? 'Generating...' : 'Generate Code'}
+              </Button>
+              
+              {generatedCode && (
+                <Button
+                  variant="outline"
+                  onClick={regenerateCode}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Regenerate
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Generated Code Display */}
+      {generatedCode && (
+        <CodeEditor
+          initialCode={generatedCode}
+          language={selectedTemplate?.language || 'javascript'}
+          readOnly={false}
+          onCodeChange={(code) => setGeneratedCode(code)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default CodeGenerator;
