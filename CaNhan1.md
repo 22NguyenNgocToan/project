@@ -671,3 +671,215 @@ const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onCodeGenerated }) => {
 };
 
 export default CodeGenerator;
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Search, AlertTriangle, AlertCircle, Info, CheckCircle } from 'lucide-react';
+import { runCodeReview, getReviewStats, ReviewResult } from '@/lib/reviewRules';
+import CodeEditor from './CodeEditor';
+import { toast } from 'sonner';
+
+interface CodeReviewerProps {
+  initialCode?: string;
+}
+
+const CodeReviewer: React.FC<CodeReviewerProps> = ({ initialCode = '' }) => {
+  const [code, setCode] = useState(initialCode);
+  const [reviewResults, setReviewResults] = useState<ReviewResult[]>([]);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewStats, setReviewStats] = useState({
+    total: 0,
+    errors: 0,
+    warnings: 0,
+    info: 0
+  });
+
+  useEffect(() => {
+    setCode(initialCode);
+  }, [initialCode]);
+
+  const handleReviewCode = async () => {
+    if (!code.trim()) {
+      toast.error('Please enter some code to review');
+      return;
+    }
+
+    setIsReviewing(true);
+    
+    // Simulate review process
+    setTimeout(() => {
+      const results = runCodeReview(code);
+      setReviewResults(results);
+      setReviewStats(getReviewStats(results));
+      setIsReviewing(false);
+      
+      if (results.length === 0) {
+        toast.success('Great! No issues found in your code.');
+      } else {
+        toast.info(`Review complete: ${results.length} issues found`);
+      }
+    }, 1500);
+  };
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-red-500" />;
+      case 'warning':
+        return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
+      case 'info':
+        return <Info className="w-4 h-4 text-blue-500" />;
+      default:
+        return <Info className="w-4 h-4" />;
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'error':
+        return 'destructive';
+      case 'warning':
+        return 'secondary';
+      case 'info':
+        return 'outline';
+      default:
+        return 'outline';
+    }
+  };
+
+  const getQualityScore = () => {
+    if (reviewStats.total === 0) return 100;
+    const errorWeight = reviewStats.errors * 3;
+    const warningWeight = reviewStats.warnings * 1;
+    const totalWeight = errorWeight + warningWeight;
+    return Math.max(0, Math.min(100, 100 - totalWeight * 2));
+  };
+
+  const qualityScore = getQualityScore();
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="w-5 h-5" />
+            Code Reviewer
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <CodeEditor
+              initialCode={code}
+              onCodeChange={setCode}
+              language="javascript"
+            />
+            
+            <Button
+              onClick={handleReviewCode}
+              disabled={isReviewing}
+              className="w-full"
+            >
+              {isReviewing ? 'Reviewing Code...' : 'Review Code'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Review Results */}
+      {(reviewResults.length > 0 || reviewStats.total > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Review Results</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-normal">Quality Score:</span>
+                <Badge variant={qualityScore >= 80 ? 'default' : qualityScore >= 60 ? 'secondary' : 'destructive'}>
+                  {qualityScore}%
+                </Badge>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Quality Score Progress */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Code Quality</span>
+                <span>{qualityScore}%</span>
+              </div>
+              <Progress 
+                value={qualityScore} 
+                className="h-2"
+              />
+            </div>
+
+            {/* Stats Summary */}
+            <div className="grid grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold">{reviewStats.total}</div>
+                <div className="text-sm text-gray-600">Total Issues</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{reviewStats.errors}</div>
+                <div className="text-sm text-gray-600">Errors</div>
+              </div>
+              <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-600">{reviewStats.warnings}</div>
+                <div className="text-sm text-gray-600">Warnings</div>
+              </div>
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{reviewStats.info}</div>
+                <div className="text-sm text-gray-600">Info</div>
+              </div>
+            </div>
+
+            {/* Issues List */}
+            {reviewResults.length === 0 ? (
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Excellent! No issues found in your code. Keep up the good work!
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-3">
+                <h4 className="font-medium">Issues Found:</h4>
+                {reviewResults.map((result, index) => (
+                  <Alert key={index} className="flex items-start gap-3">
+                    {getSeverityIcon(result.severity)}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant={getSeverityColor(result.severity) as any}>
+                          {result.severity.toUpperCase()}
+                        </Badge>
+                        <span className="text-sm text-gray-600">
+                          Line {result.line}, Column {result.column}
+                        </span>
+                      </div>
+                      <AlertDescription>
+                        {result.message}
+                      </AlertDescription>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Rule: {result.rule}
+                      </div>
+                    </div>
+                  </Alert>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )}
+  </div>
+  );
+};
+
+export default CodeReviewer;
