@@ -343,3 +343,159 @@ export const getReviewStats = (results: ReviewResult[]) => {
   
   return stats;
 };
+
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Copy, Download, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface CodeEditorProps {
+  initialCode?: string;
+  language?: string;
+  onCodeChange?: (code: string) => void;
+  readOnly?: boolean;
+}
+
+const CodeEditor: React.FC<CodeEditorProps> = ({
+  initialCode = '',
+  language = 'javascript',
+  onCodeChange,
+  readOnly = false
+}) => {
+  const [code, setCode] = useState(initialCode);
+  const [lineNumbers, setLineNumbers] = useState<number[]>([]);
+
+  useEffect(() => {
+    const lines = code.split('\n').length;
+    setLineNumbers(Array.from({ length: lines }, (_, i) => i + 1));
+  }, [code]);
+
+  useEffect(() => {
+    setCode(initialCode);
+  }, [initialCode]);
+
+  const handleCodeChange = (value: string) => {
+    setCode(value);
+    onCodeChange?.(value);
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success('Code copied to clipboard!');
+    } catch (err) {
+      toast.error('Failed to copy code');
+    }
+  };
+
+  const downloadCode = () => {
+    const element = document.createElement('a');
+    const file = new Blob([code], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `code.${language}`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    toast.success('Code downloaded!');
+  };
+
+  const uploadFile = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.js,.ts,.jsx,.tsx,.py,.sql,.html,.css,.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const content = e.target?.result as string;
+          handleCodeChange(content);
+          toast.success('File uploaded successfully!');
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
+  return (
+    <Card className="w-full">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-lg">Code Editor</CardTitle>
+            <Badge variant="outline">{language}</Badge>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={uploadFile}
+              className="flex items-center gap-1"
+            >
+              <Upload className="w-4 h-4" />
+              Upload
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyToClipboard}
+              className="flex items-center gap-1"
+            >
+              <Copy className="w-4 h-4" />
+              Copy
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={downloadCode}
+              className="flex items-center gap-1"
+            >
+              <Download className="w-4 h-4" />
+              Download
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="relative">
+          <div className="flex border rounded-lg overflow-hidden">
+            {/* Line numbers */}
+            <div className="bg-gray-50 px-2 py-3 text-sm text-gray-500 font-mono select-none border-r">
+              {lineNumbers.map((num) => (
+                <div key={num} className="leading-6">
+                  {num}
+                </div>
+              ))}
+            </div>
+            
+            {/* Code area */}
+            <div className="flex-1">
+              <Textarea
+                value={code}
+                onChange={(e) => handleCodeChange(e.target.value)}
+                readOnly={readOnly}
+                className="min-h-[400px] font-mono text-sm border-0 resize-none focus:ring-0 rounded-none"
+                placeholder="Enter your code here..."
+                style={{
+                  lineHeight: '1.5',
+                  tabSize: 2
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default CodeEditor;
